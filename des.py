@@ -201,7 +201,7 @@ def DES_encrypt(plaintext, key):
     IP = permute(plaintext_bin, IP_table)
     steps.append(f"After Initial Permutation (IP): {IP}")
     
-    # 2. Split into Left and Right
+    # 2. Split into Left (L0) and Right (R0)
     L = IP[:32]
     R = IP[32:]
     steps.append(f"L0: {L}")
@@ -210,7 +210,7 @@ def DES_encrypt(plaintext, key):
     # 3. Generate 16 Round Keys
     round_keys = generate_round_keys(key_bin)
     
-    # 4. 16 Rounds
+    # 4. 16 Rounds of Processing
     for i in range(16):
         steps.append(f"----- Round {i+1} -----")
         steps.append(f"Round Key: {round_keys[i]}")
@@ -253,29 +253,42 @@ def main():
             "1. **Input Requirements:**\n"
             "   - Plaintext: 8 ASCII characters\n"
             "   - Key: 8 ASCII characters\n\n"
-            "2. The app converts inputs to binary and performs DES encryption.\n"
-            "3. Detailed steps are available in the 'Encryption Details' section below."
+            "2. The app converts your inputs to binary and performs DES encryption.\n"
+            "3. Use the tabs below to view a brief summary or the detailed step-by-step process."
         )
     
-    # Input Section
+    # Input Section in two columns
     col1, col2 = st.columns(2)
     with col1:
         plaintext = st.text_input("Plaintext (8 characters)", "DESdemo!")
     with col2:
         key = st.text_input("Key (8 characters)", "mykey123")
     
-    # Encrypt button
     if st.button("Encrypt"):
         if len(plaintext) != 8 or len(key) != 8:
             st.error("Both plaintext and key must be exactly 8 characters long.")
         else:
             steps, cipher_hex = DES_encrypt(plaintext, key)
-            st.success(f"Final Ciphertext (hex): {cipher_hex}")
             
-            # Expandable section for step-by-step details
-            with st.expander("Show Encryption Details"):
-                for step in steps:
-                    st.write(step)
+            # Display results in tabbed layout: Summary and Detailed Steps
+            tab_summary, tab_details = st.tabs(["Summary", "Detailed Steps"])
+            
+            with tab_summary:
+                st.success(f"Final Ciphertext (hex): {cipher_hex}")
+                st.markdown("#### Encryption Summary")
+                st.markdown("- Converted plaintext and key to binary.")
+                st.markdown("- Applied the Initial Permutation (IP).")
+                st.markdown("- Performed 16 rounds of DES processing (expansion, XOR, S-box substitution, and permutation).")
+                st.markdown("- Combined halves and applied the Final Permutation (FP).")
+            
+            with tab_details:
+                st.markdown("### Detailed Encryption Steps")
+                for idx, step in enumerate(steps):
+                    st.markdown(f"**Step {idx+1}:** {step}")
+    
+    # Footer message
+    st.markdown("---")
+    st.markdown("Made with ❤️ on Streamlit by [pr1ncegupta](https://github.com/pr1ncegupta)")
 
 if __name__ == '__main__':
     main()
