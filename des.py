@@ -188,56 +188,63 @@ def DES_round(R, round_key):
 # DES Encryption Function (with Step-by-Step Logging)
 # -------------------------------
 def DES_encrypt(plaintext, key):
-    steps = []
+    # Lists to hold grouped steps
+    initial_steps = []
+    round_steps_all = []  # list of lists (each inner list is a round's steps)
+    final_steps = []
+    
+    # Convert inputs to binary
     plaintext_bin = text_to_bin(plaintext)
     key_bin = text_to_bin(key)
     
-    steps.append(f"Plaintext (text): {plaintext}")
-    steps.append(f"Plaintext (bin): {plaintext_bin}")
-    steps.append(f"Key (text): {key}")
-    steps.append(f"Key (bin): {key_bin}")
+    initial_steps.append(f"Plaintext (text): {plaintext}")
+    initial_steps.append(f"Plaintext (bin): {plaintext_bin}")
+    initial_steps.append(f"Key (text): {key}")
+    initial_steps.append(f"Key (bin): {key_bin}")
     
     # 1. Initial Permutation (IP)
     IP = permute(plaintext_bin, IP_table)
-    steps.append(f"After Initial Permutation (IP): {IP}")
+    initial_steps.append(f"After Initial Permutation (IP): {IP}")
     
     # 2. Split into Left (L0) and Right (R0)
     L = IP[:32]
     R = IP[32:]
-    steps.append(f"L0: {L}")
-    steps.append(f"R0: {R}")
+    initial_steps.append(f"L0: {L}")
+    initial_steps.append(f"R0: {R}")
     
     # 3. Generate 16 Round Keys
     round_keys = generate_round_keys(key_bin)
     
-    # 4. 16 Rounds of Processing
+    # 4. Process 16 Rounds
     for i in range(16):
-        steps.append(f"----- Round {i+1} -----")
-        steps.append(f"Round Key: {round_keys[i]}")
+        rsteps = []
+        rsteps.append(f"----- Round {i+1} -----")
+        rsteps.append(f"Round Key: {round_keys[i]}")
         R_expanded, xor_result, blocks, sbox_out, f_out = DES_round(R, round_keys[i])
-        steps.append(f"Expanded R (48 bits): {R_expanded}")
-        steps.append(f"R XOR Key: {xor_result}")
+        rsteps.append(f"Expanded R (48 bits): {R_expanded}")
+        rsteps.append(f"R XOR Key: {xor_result}")
         for j, block in enumerate(blocks):
-            steps.append(f"  S-box {j+1} input: {block}")
-        steps.append(f"After S-box substitution: {sbox_out}")
-        steps.append(f"After Permutation (P-box): {f_out}")
+            rsteps.append(f"  S-box {j+1} input: {block}")
+        rsteps.append(f"After S-box substitution: {sbox_out}")
+        rsteps.append(f"After Permutation (P-box): {f_out}")
         new_R = ''.join('0' if a == b else '1' for a, b in zip(L, f_out))
-        steps.append(f"New R (L XOR f(R,Key)): {new_R}")
+        rsteps.append(f"New R (L XOR f(R,Key)): {new_R}")
+        # Update for next round
         L = R
         R = new_R
-        steps.append(f"New L: {L}")
-        steps.append(f"New R: {R}")
+        rsteps.append(f"New L: {L}")
+        rsteps.append(f"New R: {R}")
+        round_steps_all.append(rsteps)
     
     # 5. Preoutput and Final Permutation
     combined = R + L
-    steps.append(f"Combined (R16 + L16): {combined}")
+    final_steps.append(f"Combined (R16 + L16): {combined}")
     cipher_bin = permute(combined, FP_table)
-    steps.append(f"After Final Permutation (FP): {cipher_bin}")
-    
+    final_steps.append(f"After Final Permutation (FP): {cipher_bin}")
     cipher_hex = bin_to_hex(cipher_bin)
-    steps.append(f"Ciphertext (hex): {cipher_hex}")
+    final_steps.append(f"Ciphertext (hex): {cipher_hex}")
     
-    return steps, cipher_hex
+    return initial_steps, round_steps_all, final_steps, cipher_hex
 
 # -------------------------------
 # Streamlit App Layout
@@ -254,7 +261,7 @@ def main():
             "   - Plaintext: 8 ASCII characters\n"
             "   - Key: 8 ASCII characters\n\n"
             "2. The app converts your inputs to binary and performs DES encryption.\n"
-            "3. Use the tabs below to view a brief summary or the detailed step-by-step process."
+            "3. Use the tabs below to view a brief summary or the detailed step-by-step process divided round‑wise."
         )
     
     # Input Section in two columns
@@ -268,23 +275,35 @@ def main():
         if len(plaintext) != 8 or len(key) != 8:
             st.error("Both plaintext and key must be exactly 8 characters long.")
         else:
-            steps, cipher_hex = DES_encrypt(plaintext, key)
+            init_steps, rounds_steps, final_steps, cipher_hex = DES_encrypt(plaintext, key)
             
-            # Display results in tabbed layout: Summary and Detailed Steps
+            # Tabbed layout: Summary and Detailed Steps
             tab_summary, tab_details = st.tabs(["Summary", "Detailed Steps"])
             
             with tab_summary:
                 st.success(f"Final Ciphertext (hex): {cipher_hex}")
                 st.markdown("#### Encryption Summary")
-                st.markdown("- Converted plaintext and key to binary.")
-                st.markdown("- Applied the Initial Permutation (IP).")
-                st.markdown("- Performed 16 rounds of DES processing (expansion, XOR, S-box substitution, and permutation).")
-                st.markdown("- Combined halves and applied the Final Permutation (FP).")
+                st.markdown("- Inputs converted to binary.")
+                st.markdown("- Initial Permutation applied and split into halves.")
+                st.markdown("- 16 rounds of DES processing performed (see detailed rounds below).")
+                st.markdown("- Final Permutation applied to produce ciphertext.")
             
             with tab_details:
-                st.markdown("### Detailed Encryption Steps")
-                for idx, step in enumerate(steps):
-                    st.markdown(f"**Step {idx+1}:** {step}")
+                st.markdown("### Initial Steps")
+                with st.expander("Show Initial Steps"):
+                    for step in init_steps:
+                        st.markdown(f"- {step}")
+                
+                # Display each round in its own expander
+                for i, rsteps in enumerate(rounds_steps):
+                    with st.expander(f"Round {i+1} Steps"):
+                        for step in rsteps:
+                            st.markdown(f"- {step}")
+                
+                st.markdown("### Final Steps")
+                with st.expander("Show Final Steps"):
+                    for step in final_steps:
+                        st.markdown(f"- {step}")
     
     # Footer message
     st.markdown("---")
