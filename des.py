@@ -1,5 +1,8 @@
 import streamlit as st
 
+# Set up the page configuration
+st.set_page_config(page_title="DES Calculator", layout="wide")
+
 # -------------------------------
 # Utility Functions for Bit Handling
 # -------------------------------
@@ -10,7 +13,6 @@ def text_to_bin(text):
 def bin_to_hex(bin_str):
     """Convert a binary string to a hexadecimal string."""
     hex_str = hex(int(bin_str, 2))[2:].upper()
-    # Zero-pad to ensure proper length (bin_str length divided by 4)
     return hex_str.zfill(len(bin_str) // 4)
 
 def permute(input_bits, table):
@@ -152,7 +154,6 @@ def generate_round_keys(key):
     D = key_permuted[28:]
     round_keys = []
     for shift in shift_table:
-        # Left circular shifts
         C = C[shift:] + C[:shift]
         D = D[shift:] + D[:shift]
         combined = C + D
@@ -165,15 +166,14 @@ def generate_round_keys(key):
 # -------------------------------
 def DES_round(R, round_key):
     """
-    The DES round function:
+    DES round function:
       1. Expand R (32 bits) to 48 bits.
       2. XOR with the round key.
-      3. Divide into eight 6-bit blocks and process each through the S-boxes.
-      4. Permute the 32-bit result with the P-table.
+      3. Process through 8 S-boxes.
+      4. Permute the 32-bit output.
     """
     R_expanded = permute(R, E_table)
-    xor_result = ''.join('0' if bit1 == bit2 else '1' for bit1, bit2 in zip(R_expanded, round_key))
-    # Divide the result into eight 6-bit blocks
+    xor_result = ''.join('0' if a == b else '1' for a, b in zip(R_expanded, round_key))
     blocks = [xor_result[i*6:(i+1)*6] for i in range(8)]
     sbox_output = ""
     for i, block in enumerate(blocks):
@@ -189,83 +189,93 @@ def DES_round(R, round_key):
 # -------------------------------
 def DES_encrypt(plaintext, key):
     steps = []
-
-    # Convert plaintext and key from text to binary (each 8 characters = 64 bits)
     plaintext_bin = text_to_bin(plaintext)
     key_bin = text_to_bin(key)
+    
     steps.append(f"Plaintext (text): {plaintext}")
     steps.append(f"Plaintext (bin): {plaintext_bin}")
     steps.append(f"Key (text): {key}")
     steps.append(f"Key (bin): {key_bin}")
-
+    
     # 1. Initial Permutation (IP)
     IP = permute(plaintext_bin, IP_table)
     steps.append(f"After Initial Permutation (IP): {IP}")
-
-    # 2. Split into Left (L0) and Right (R0)
+    
+    # 2. Split into Left and Right
     L = IP[:32]
     R = IP[32:]
-    steps.append(f"Left (L0): {L}")
-    steps.append(f"Right (R0): {R}")
-
+    steps.append(f"L0: {L}")
+    steps.append(f"R0: {R}")
+    
     # 3. Generate 16 Round Keys
     round_keys = generate_round_keys(key_bin)
-
-    # 4. 16 Rounds of Processing
+    
+    # 4. 16 Rounds
     for i in range(16):
         steps.append(f"----- Round {i+1} -----")
         steps.append(f"Round Key: {round_keys[i]}")
         R_expanded, xor_result, blocks, sbox_out, f_out = DES_round(R, round_keys[i])
-        steps.append(f"R expanded (48 bits): {R_expanded}")
-        steps.append(f"XOR with Round Key: {xor_result}")
+        steps.append(f"Expanded R (48 bits): {R_expanded}")
+        steps.append(f"R XOR Key: {xor_result}")
         for j, block in enumerate(blocks):
             steps.append(f"  S-box {j+1} input: {block}")
-        steps.append(f"After S-box substitution (32 bits): {sbox_out}")
+        steps.append(f"After S-box substitution: {sbox_out}")
         steps.append(f"After Permutation (P-box): {f_out}")
-        # New right half is obtained by XORing f_out with the current left half.
         new_R = ''.join('0' if a == b else '1' for a, b in zip(L, f_out))
-        steps.append(f"New Right (L XOR f(R, Key)): {new_R}")
-        # Prepare for next round: new left becomes the old R, and new right becomes new_R.
+        steps.append(f"New R (L XOR f(R,Key)): {new_R}")
         L = R
         R = new_R
-        steps.append(f"New Left: {L}")
-        steps.append(f"New Right: {R}")
-
-    # 5. Preoutput: Combine R16 and L16 (note the swap)
+        steps.append(f"New L: {L}")
+        steps.append(f"New R: {R}")
+    
+    # 5. Preoutput and Final Permutation
     combined = R + L
     steps.append(f"Combined (R16 + L16): {combined}")
-
-    # 6. Final Permutation (FP)
     cipher_bin = permute(combined, FP_table)
     steps.append(f"After Final Permutation (FP): {cipher_bin}")
-
+    
     cipher_hex = bin_to_hex(cipher_bin)
     steps.append(f"Ciphertext (hex): {cipher_hex}")
-
+    
     return steps, cipher_hex
 
 # -------------------------------
 # Streamlit App Layout
 # -------------------------------
 def main():
-    st.title("DES Algorithm Calculator - Step by Step")
-    st.write(
-        "Enter a plaintext and a key in plain text (8 characters each). "
-        "This app converts your input to binary and shows the DES encryption process step by step."
-    )
-
-    plaintext = st.text_input("Plaintext (8 characters)", "DESdemo!")
-    key = st.text_input("Key (8 characters)", "mykey123")
-
+    st.title("DES Algorithm Calculator")
+    st.markdown("### Step-by-Step DES Encryption")
+    
+    # Sidebar instructions
+    with st.sidebar:
+        st.header("Instructions")
+        st.info(
+            "1. **Input Requirements:**\n"
+            "   - Plaintext: 8 ASCII characters\n"
+            "   - Key: 8 ASCII characters\n\n"
+            "2. The app converts inputs to binary and performs DES encryption.\n"
+            "3. Detailed steps are available in the 'Encryption Details' section below."
+        )
+    
+    # Input Section
+    col1, col2 = st.columns(2)
+    with col1:
+        plaintext = st.text_input("Plaintext (8 characters)", "DESdemo!")
+    with col2:
+        key = st.text_input("Key (8 characters)", "mykey123")
+    
+    # Encrypt button
     if st.button("Encrypt"):
         if len(plaintext) != 8 or len(key) != 8:
             st.error("Both plaintext and key must be exactly 8 characters long.")
         else:
             steps, cipher_hex = DES_encrypt(plaintext, key)
-            st.subheader("Encryption Process Details")
-            for step in steps:
-                st.write(step)
             st.success(f"Final Ciphertext (hex): {cipher_hex}")
+            
+            # Expandable section for step-by-step details
+            with st.expander("Show Encryption Details"):
+                for step in steps:
+                    st.write(step)
 
 if __name__ == '__main__':
     main()
